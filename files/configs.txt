@@ -1,0 +1,1 @@
+{"v":"2","ps":"test config 1","add":"1.2.3.4","port":"443","id":"test","aid":"0","net":"tcp","type":"none","host":"","path":"","tls":"tls"}

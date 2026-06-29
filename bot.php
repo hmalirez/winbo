@@ -47,8 +47,8 @@ function getRandomLine($file) {
 
 function setConfigRemark($line) {
     $configName = '[🇮🇷@Win2Ray]•[𝖥𝖱𝖤𝖤]';
-    if (preg_match('/"(remark|ps)"\s*:\s*"[^"]+"/s', $line)) {
-        $line = preg_replace('/"(remark|ps)"\s*:\s*"[^"]+"/s', '"remark":"' . $configName . '"', $line);
+    if (preg_match('/"(remark|ps)"\s*:\s*"[^"]+"/i', $line)) {
+        $line = preg_replace('/"(remark|ps)"\s*:\s*"[^"]+"/i', '"remark":"' . $configName . '"', $line);
     }
     return $line;
 }
@@ -77,10 +77,12 @@ function getRandomConfig($file, $replaceIp = null) {
 }
 
 function replaceServerIp($config, $newIp) {
-    if (preg_match('/"server"\s*:\s*"[^"]+"/s', $config)) {
-        $config = preg_replace('/"server"\s*:\s*"[^"]+"/s', '"server":"' . $newIp . '"', $config);
-    } elseif (preg_match('/server=([^&\s]+)/', $config)) {
-        $config = preg_replace('/server=([^&\s]+)/', 'server=' . $newIp, $config);
+    if (preg_match('/"add"\s*:\s*"[^"]+"/i', $config)) {
+        $config = preg_replace('/"add"\s*:\s*"[^"]+"/i', '"add":"' . $newIp . '"', $config);
+    } elseif (preg_match('/"server"\s*:\s*"[^"]+"/i', $config)) {
+        $config = preg_replace('/"server"\s*:\s*"[^"]+"/i', '"server":"' . $newIp . '"', $config);
+    } elseif (preg_match('/server=([^&\s]+)/i', $config)) {
+        $config = preg_replace('/server=([^&\s]+)/i', 'server=' . $newIp, $config);
     }
     return $config;
 }
@@ -236,21 +238,11 @@ function isValidV2rayConfig($text) {
     $text = trim($text);
     if (empty($text)) return false;
     
-    if (strpos($text, '{') !== false) {
-        $hasServer = preg_match('/"server"\s*:\s*"[^"]+"/s', $text);
-        $hasPort = preg_match('/"port"\s*:/s', $text);
-        if (!$hasServer || !$hasPort) return false;
-    }
-    
-    $patterns = ['vless', 'vmess', 'trojan', 'shadowsocks', 'ss://'];
     $textLower = strtolower($text);
+    $patterns = ['vless', 'vmess', 'trojan', 'shadowsocks', 'ss://', '"add":', '"port":'];
     foreach ($patterns as $pattern) {
         if (strpos($textLower, $pattern) !== false) return true;
     }
-    if (preg_match('/^ss:\/\//i', $text)) return true;
-    if (preg_match('/^trojan:\/\//i', $text)) return true;
-    if (preg_match('/^vless:\/\//i', $text)) return true;
-    if (preg_match('/^vmess:\/\//i', $text)) return true;
     return false;
 }
 
@@ -326,7 +318,7 @@ if (isset($update['message'])) {
         // Forwarded messages for broadcast
         if (isset($message['forward_from']) || isset($message['forward_sender_name']) || isset($message['forward_from_chat'])) {
             forwardMessageToAll($chat_id, $message_id);
-            sendMessage($chat_id, "✅ پیام به همه کاربران فوروارد شد", mainMenuKeyboard());
+            sendMessage($chat_id, "✅ پیام به همه کاربران فوروارد شد", mainMenuKeyboard(isAdmin($user_id)));
         }
         
         // Admin config input
@@ -336,7 +328,7 @@ if (isset($update['message'])) {
                 $line = trim($line);
                 if ($line) addLine(CONFIG_FILE, $line);
             }
-            editMessage($chat_id, $state['message_id'], "✅ کانفیگ‌ها ذخیره شدند", mainMenuKeyboard());
+            editMessage($chat_id, $state['message_id'], "✅ کانفیگ‌ها ذخیره شدند", mainMenuKeyboard(isAdmin($user_id)));
             clearUserState($user_id);
         }
         
@@ -347,7 +339,7 @@ if (isset($update['message'])) {
                 $line = trim($line);
                 if ($line) addLine(IP_FILE, $line);
             }
-            editMessage($chat_id, $state['message_id'], "✅ آیپی‌ها ذخیره شدند", mainMenuKeyboard());
+            editMessage($chat_id, $state['message_id'], "✅ آیپی‌ها ذخیره شدند", mainMenuKeyboard(isAdmin($user_id)));
             clearUserState($user_id);
         }
         
@@ -362,7 +354,7 @@ if (isset($update['message'])) {
             if (!empty($urls)) {
                 file_put_contents(GIFT_FILE, implode(PHP_EOL, $urls) . PHP_EOL, FILE_APPEND | LOCK_EX);
             }
-            editMessage($chat_id, $state['message_id'], "✅ لینک‌های اشتراک ذخیره شدند", mainMenuKeyboard());
+            editMessage($chat_id, $state['message_id'], "✅ لینک‌های اشتراک ذخیره شدند", mainMenuKeyboard(isAdmin($user_id)));
             clearUserState($user_id);
         }
     }
@@ -390,7 +382,7 @@ if (isset($update['message'])) {
     if (isset($state['waiting_for']) && $state['waiting_for'] == 'donate_config') {
         if (isValidV2rayConfig($text)) {
             addLine(USER_CONFIG_FILE, $text);
-            editMessage($chat_id, $state['message_id'], "✅ کانفیگ شما ذخیره شد", mainMenuKeyboard());
+            editMessage($chat_id, $state['message_id'], "✅ کانفیگ شما ذخیره شد", mainMenuKeyboard(isAdmin($user_id)));
         } else {
             editMessage($chat_id, $state['message_id'], "❌ کانفیگ معتبر نیست. لطفاً دوباره تلاش کنید:", createInlineKeyboard([], true, true));
         }
@@ -401,7 +393,7 @@ if (isset($update['message'])) {
     if (isset($state['waiting_for']) && $state['waiting_for'] == 'donate_ip') {
         if (isValidIpAddress($text)) {
             addLine(IP_FREE_FILE, $text);
-            editMessage($chat_id, $state['message_id'], "✅ آیپی تمیز ذخیره شد", mainMenuKeyboard());
+            editMessage($chat_id, $state['message_id'], "✅ آیپی تمیز ذخیره شد", mainMenuKeyboard(isAdmin($user_id)));
         } else {
             editMessage($chat_id, $state['message_id'], "❌ آیپی معتبر نیست. لطفاً دوباره تلاش کنید:", createInlineKeyboard([], true, true));
         }
@@ -414,7 +406,7 @@ if (isset($update['message'])) {
             $url = useGiftCode($text);
             if ($url) {
                 markGiftUsed($user_id);
-                editMessage($chat_id, $state['message_id'], "🎉 کد هدیه معتبر بود!\n\n🔗 لینک اشتراک:\n<code>" . htmlspecialchars($url) . "</code>", mainMenuKeyboard());
+                editMessage($chat_id, $state['message_id'], "🎉 کد هدیه معتبر بود!\n\n🔗 لینک اشتراک:\n<code>" . htmlspecialchars($url) . "</code>", mainMenuKeyboard(isAdmin($user_id)));
             } else {
                 editMessage($chat_id, $state['message_id'], "❌ کد هدیه نامعتبر است یا قبلاً استفاده شده", createInlineKeyboard([], true, true));
             }
@@ -441,7 +433,7 @@ if (isset($update['callback_query'])) {
         editMessage($chat_id, $message_id, $main['text'], $main['keyboard']);
     }
     
-    // Back button - goes to main menu
+    // Back button
     if ($data == 'back') {
         $main = getMainMenu(isAdmin($user_id));
         editMessage($chat_id, $message_id, $main['text'], $main['keyboard']);
