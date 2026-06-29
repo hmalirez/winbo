@@ -1,0 +1,22 @@
+name: Deploy to FTP
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: SamKirkland/FTP-Deploy-Action@v4
+        with:
+          server: ftp.alirez.n-cpanel.xyz
+          username: alirezni
+          password: ${{ secrets.FTP_PASSWORD }}
+          protocol: ftp
+          port: 21
+          server-dir: /public_html/TelegramBot/Winbo/
+          local-dir: ./
