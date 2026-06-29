@@ -42,11 +42,17 @@ function getRandomLine($file) {
     if (!file_exists($file)) return null;
     $lines = file($file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
     if (empty($lines)) return null;
-    return $lines[array_rand($lines)];
+    return trim($lines[array_rand($lines)]);
 }
 
 function addLine($file, $line) {
-    $line = preg_replace('/\s+/', ' ', trim($line));
+    $line = trim($line);
+    if (in_array($file, [CONFIG_FILE, CONFIG_FREE_FILE, USER_CONFIG_FILE])) {
+        $configName = '[🇮🇷@Win2Ray]•[𝖥𝖱𝖤𝖤]';
+        if (preg_match('/"(remark|ps)"\s*:\s*"[^"]+"/', $line)) {
+            $line = preg_replace('/"(remark|ps)"\s*:\s*"[^"]+"/', '"remark":"' . $configName . '"', $line);
+        }
+    }
     file_put_contents($file, $line . PHP_EOL, FILE_APPEND | LOCK_EX);
 }
 
@@ -75,6 +81,26 @@ function getUserConfig($userId) {
     $file = DATA_DIR . '/user_config_' . $userId . '.txt';
     if (!file_exists($file)) return null;
     return file_get_contents($file);
+}
+
+function replaceServerIp($config, $newIp) {
+    $patterns = [
+        '/"server"\s*:\s*"[^"]+"/',
+        '/"server"\s*:\s*"[\\s\\S]*?"/',
+        '/server=([^&]+)/'
+    ];
+    
+    foreach ($patterns as $pattern) {
+        if (preg_match($pattern, $config)) {
+            if (strpos($pattern, 'server=') !== false) {
+                $config = preg_replace($pattern, 'server=' . $newIp, $config);
+            } else {
+                $config = preg_replace($pattern, '"server":"' . $newIp . '"', $config);
+            }
+            break;
+        }
+    }
+    return $config;
 }
 
 function saveUserConfig($userId, $config) {
@@ -222,14 +248,18 @@ function clearUserState($userId) {
 }
 
 function isValidV2rayConfig($text) {
-    $patterns = [
-        '/"v":\s*"2"/', '/"protocol":\s*"vless"/', '/"protocol":\s*"vmess"/',
-        '/"protocol":\s*"trojan"/', '/"protocol":\s*"shadowsocks"/', '/"protocol":\s*"ss"/',
-        '/"protocol":\s*"socks"/', '/"server".*"port"/s'
-    ];
+    $text = trim($text);
+    if (empty($text)) return false;
+    $textLower = strtolower($text);
+    $hasServer = preg_match('/"server"\s*:\s*"[^"]+"/i', $text);
+    $hasPort = preg_match('/"port"\s*:\s*"[^"]+"/i', $text) || preg_match('/"port"\s*:\s*\d+/', $text);
+    if (!$hasServer || !$hasPort) return false;
+    
+    $patterns = ['vless', 'vmess', 'trojan', 'shadowsocks', 'ss://'];
     foreach ($patterns as $pattern) {
-        if (preg_match($pattern, $text)) return true;
+        if (strpos($textLower, $pattern) !== false) return true;
     }
+    if (preg_match('/^\{.*\}$/s', $text) || strpos($textLower, 'ss://') === 0) return true;
     return false;
 }
 
@@ -360,7 +390,7 @@ if (isset($update['message'])) {
     if (isset($state['waiting_for']) && $state['waiting_for'] == 'send_ip' && !isAdmin($user_id)) {
         $config = getUserConfig($user_id);
         if ($config) {
-            $newConfig = preg_replace('/"server"\s*:\s*"[^"]+"/', '"server":"' . $text . '"', $config);
+            $newConfig = replaceServerIp($config, $text);
             saveUserConfig($user_id, $newConfig);
             $msgText = "⚙️ کانفیگ با آیپی شما:\n\n<code>" . htmlspecialchars($newConfig) . "</code>\n\n🔸 برای تعویض دیگر آیپی روی دکمه زیر بزنید:";
             $keyboard = createInlineKeyboard([
@@ -478,20 +508,32 @@ if (isset($update['callback_query'])) {
     }
     
     if ($data == 'change_ip_custom') {
-        $ip = getRandomLine(IP_FILE);
-        if (!$ip) {
-            $text = "❌ آیپی جدیدی موجود نیست";
+        if (!file_exists(IP_FILE)) {
+            $text = "❌ فایل آیپی موجود نیست";
             $keyboard = createInlineKeyboard([
                 ['text' => "🔄 تعویض آیپی", 'callback_data' => 'change_ip_custom']
             ], true, true);
         } else {
-            $config = getUserConfig($user_id);
-            $newConfig = preg_replace('/"server"\s*:\s*"[^"]+"/', '"server":"' . $ip . '"', $config);
-            saveUserConfig($user_id, $newConfig);
-            $text = "⚙️ کانفیگ با آیپی جدید:\n\n<code>" . htmlspecialchars($newConfig) . "</code>\n\n🔸 برای تعویض دوباره روی دکمه زیر بزنید:";
-            $keyboard = createInlineKeyboard([
-                ['text' => "🔄 تعویض آیپی", 'callback_data' => 'change_ip_custom']
-            ], true, true);
+            $ip = getRandomLine(IP_FILE);
+            if (!$ip) {
+                $text = "❌ آیپی جدیدی موجود نیست";
+                $keyboard = createInlineKeyboard([
+                    ['text' => "🔄 تعویض آیپی", 'callback_data' => 'change_ip_custom']
+                ], true, true);
+} else {
+                    $config = getUserConfig($user_id);
+                    if (!$config) {
+                        $text = "❌ کانفیگ یافت نشد";
+                        $keyboard = createInlineKeyboard([], true, true);
+                    } else {
+                        $newConfig = replaceServerIp($config, $ip);
+                        saveUserConfig($user_id, $newConfig);
+                        $text = "⚙️ کانفیگ با آیپی جدید:\n\n<code>" . htmlspecialchars($newConfig) . "</code>\n\n🔸 برای تعویض دوباره روی دکمه زیر بزنید:";
+                        $keyboard = createInlineKeyboard([
+                            ['text' => "🔄 تعویض آیپی", 'callback_data' => 'change_ip_custom']
+                        ], true, true);
+                    }
+                }
         }
         editMessage($chat_id, $message_id, $text, $keyboard);
     }
@@ -513,20 +555,32 @@ if (isset($update['callback_query'])) {
     }
     
     if ($data == 'change_ip_free') {
-        $ip = getRandomLine(IP_FREE_FILE);
-        if (!$ip) {
-            $text = "❌ آیپی جدیدی موجود نیست";
+        if (!file_exists(IP_FREE_FILE)) {
+            $text = "❌ فایل آیپی موجود نیست";
             $keyboard = createInlineKeyboard([
                 ['text' => "🔄 تعویض آیپی", 'callback_data' => 'change_ip_free']
             ], true, true);
         } else {
-            $config = getUserConfig($user_id);
-            $newConfig = preg_replace('/"server"\s*:\s*"[^"]+"/', '"server":"' . $ip . '"', $config);
-            saveUserConfig($user_id, $newConfig);
-            $text = "🎁 کانفیگ اهدایی با آیپی جدید:\n\n<code>" . htmlspecialchars($newConfig) . "</code>\n\n🔸 برای تعویض دوباره روی دکمه زیر بزنید:";
-            $keyboard = createInlineKeyboard([
-                ['text' => "🔄 تعویض آیپی", 'callback_data' => 'change_ip_free']
-            ], true, true);
+            $ip = getRandomLine(IP_FREE_FILE);
+            if (!$ip) {
+                $text = "❌ آیپی جدیدی موجود نیست";
+                $keyboard = createInlineKeyboard([
+                    ['text' => "🔄 تعویض آیپی", 'callback_data' => 'change_ip_free']
+                ], true, true);
+} else {
+                    $config = getUserConfig($user_id);
+                    if (!$config) {
+                        $text = "❌ کانفیگ یافت نشد";
+                        $keyboard = createInlineKeyboard([], true, true);
+                    } else {
+                        $newConfig = replaceServerIp($config, $ip);
+                        saveUserConfig($user_id, $newConfig);
+                        $text = "🎁 کانفیگ اهدایی با آیپی جدید:\n\n<code>" . htmlspecialchars($newConfig) . "</code>\n\n🔸 برای تعویض دوباره روی دکمه زیر بزنید:";
+                        $keyboard = createInlineKeyboard([
+                            ['text' => "🔄 تعویض آیپی", 'callback_data' => 'change_ip_free']
+                        ], true, true);
+                    }
+                }
         }
         editMessage($chat_id, $message_id, $text, $keyboard);
     }
