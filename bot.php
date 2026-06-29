@@ -45,13 +45,18 @@ function getRandomLine($file) {
     return trim($lines[array_rand($lines)]);
 }
 
+function setConfigRemark($line) {
+    $configName = '[🇮🇷@Win2Ray]•[𝖥𝖱𝖤𝖤]';
+    if (preg_match('/"(remark|ps)"\s*:\s*"[^"]+"/s', $line)) {
+        $line = preg_replace('/"(remark|ps)"\s*:\s*"[^"]+"/s', '"remark":"' . $configName . '"', $line);
+    }
+    return $line;
+}
+
 function addLine($file, $line) {
     $line = trim($line);
     if (in_array($file, [CONFIG_FILE, CONFIG_FREE_FILE, USER_CONFIG_FILE])) {
-        $configName = '[🇮🇷@Win2Ray]•[𝖥𝖱𝖤𝖤]';
-        if (preg_match('/"(remark|ps)"\s*:\s*"[^"]+"/', $line)) {
-            $line = preg_replace('/"(remark|ps)"\s*:\s*"[^"]+"/', '"remark":"' . $configName . '"', $line);
-        }
+        $line = setConfigRemark($line);
     }
     file_put_contents($file, $line . PHP_EOL, FILE_APPEND | LOCK_EX);
 }
@@ -62,45 +67,28 @@ function getRandomConfig($file, $replaceIp = null) {
     if (empty($lines)) return null;
     
     $config = $lines[array_rand($lines)];
-    $configName = '[🇮🇷@Win2Ray]•[𝖥𝖱𝖤𝖤]';
-    
-    if (preg_match('/"(remark|ps)"\s*:\s*"([^"]+)"/', $config, $m)) {
-        $config = preg_replace('/"(remark|ps)"\s*:\s*"[^"]+"/', '"remark":"' . $configName . '"', $config);
-    } else {
-        $config = preg_replace('/"server"/', '"remark":"' . $configName . '","server"', $config);
-    }
+    $config = setConfigRemark($config);
     
     if ($replaceIp) {
-        $config = preg_replace('/"server"\s*:\s*"[^"]+"/', '"server":"' . $replaceIp . '"', $config);
+        $config = replaceServerIp($config, $replaceIp);
     }
     
+    return $config;
+}
+
+function replaceServerIp($config, $newIp) {
+    if (preg_match('/"server"\s*:\s*"[^"]+"/s', $config)) {
+        $config = preg_replace('/"server"\s*:\s*"[^"]+"/s', '"server":"' . $newIp . '"', $config);
+    } elseif (preg_match('/server=([^&\s]+)/', $config)) {
+        $config = preg_replace('/server=([^&\s]+)/', 'server=' . $newIp, $config);
+    }
     return $config;
 }
 
 function getUserConfig($userId) {
     $file = DATA_DIR . '/user_config_' . $userId . '.txt';
     if (!file_exists($file)) return null;
-    return file_get_contents($file);
-}
-
-function replaceServerIp($config, $newIp) {
-    $patterns = [
-        '/"server"\s*:\s*"[^"]+"/',
-        '/"server"\s*:\s*"[\\s\\S]*?"/',
-        '/server=([^&]+)/'
-    ];
-    
-    foreach ($patterns as $pattern) {
-        if (preg_match($pattern, $config)) {
-            if (strpos($pattern, 'server=') !== false) {
-                $config = preg_replace($pattern, 'server=' . $newIp, $config);
-            } else {
-                $config = preg_replace($pattern, '"server":"' . $newIp . '"', $config);
-            }
-            break;
-        }
-    }
-    return $config;
+    return trim(file_get_contents($file));
 }
 
 function saveUserConfig($userId, $config) {
@@ -207,11 +195,8 @@ function canUseGift($userId) {
     if (file_exists(GIFT_USAGE_FILE)) {
         $usage = json_decode(file_get_contents(GIFT_USAGE_FILE), true) ?: [];
     }
-    
     if (!isset($usage[$userId])) return true;
-    
-    $lastUsage = $usage[$userId];
-    return (time() - $lastUsage) > (7 * 24 * 60 * 60);
+    return (time() - $usage[$userId]) > (7 * 24 * 60 * 60);
 }
 
 function markGiftUsed($userId) {
@@ -250,47 +235,44 @@ function clearUserState($userId) {
 function isValidV2rayConfig($text) {
     $text = trim($text);
     if (empty($text)) return false;
-    $textLower = strtolower($text);
-    $hasServer = preg_match('/"server"\s*:\s*"[^"]+"/i', $text);
-    $hasPort = preg_match('/"port"\s*:\s*"[^"]+"/i', $text) || preg_match('/"port"\s*:\s*\d+/', $text);
-    if (!$hasServer || !$hasPort) return false;
+    
+    if (strpos($text, '{') !== false) {
+        $hasServer = preg_match('/"server"\s*:\s*"[^"]+"/s', $text);
+        $hasPort = preg_match('/"port"\s*:/s', $text);
+        if (!$hasServer || !$hasPort) return false;
+    }
     
     $patterns = ['vless', 'vmess', 'trojan', 'shadowsocks', 'ss://'];
+    $textLower = strtolower($text);
     foreach ($patterns as $pattern) {
         if (strpos($textLower, $pattern) !== false) return true;
     }
-    if (preg_match('/^\{.*\}$/s', $text) || strpos($textLower, 'ss://') === 0) return true;
+    if (preg_match('/^ss:\/\//i', $text)) return true;
+    if (preg_match('/^trojan:\/\//i', $text)) return true;
+    if (preg_match('/^vless:\/\//i', $text)) return true;
+    if (preg_match('/^vmess:\/\//i', $text)) return true;
     return false;
 }
 
-function isValidIp($text) {
-    $ipPattern = '/^(?:(?:[0-9]{1,3}\.){3}[0-9]{1,3}|[0-9a-fA-F:]+)$/';
-    $lines = explode("\n", $text);
-    foreach ($lines as $line) {
-        $line = trim($line);
-        if ($line && !preg_match('/^https?:\/\//', $line) && !preg_match($ipPattern, $line)) {
-            return false;
-        }
-    }
-    return true;
+function isValidIpAddress($text) {
+    $ip = trim($text);
+    if (empty($ip)) return false;
+    if (preg_match('/^https?:\/\//', $ip)) return false;
+    return preg_match('/^(?:(?:[0-9]{1,3}\.){3}[0-9]{1,3}|[0-9a-fA-F:]+)$/', $ip);
 }
 
-function forwardMessageToAll($fromChatId, $messageId, $text = null) {
+function forwardMessageToAll($fromChatId, $messageId) {
     $users = [];
     if (file_exists(USERS_FILE)) {
         $users = json_decode(file_get_contents(USERS_FILE), true) ?: [];
     }
     foreach ($users as $userId => $data) {
         if ($userId != ADMIN_ID) {
-            if ($text) {
-                sendMessage($userId, $text, mainMenuKeyboard());
-            } else {
-                makeRequest('forwardMessage', [
-                    'chat_id' => $userId,
-                    'from_chat_id' => $fromChatId,
-                    'message_id' => $messageId
-                ]);
-            }
+            makeRequest('forwardMessage', [
+                'chat_id' => $userId,
+                'from_chat_id' => $fromChatId,
+                'message_id' => $messageId
+            ]);
         }
     }
 }
@@ -387,7 +369,7 @@ if (isset($update['message'])) {
     
     // User handlers for state-based inputs
     // User IP input for custom config
-    if (isset($state['waiting_for']) && $state['waiting_for'] == 'send_ip' && !isAdmin($user_id)) {
+    if (isset($state['waiting_for']) && $state['waiting_for'] == 'send_ip') {
         $config = getUserConfig($user_id);
         if ($config) {
             $newConfig = replaceServerIp($config, $text);
@@ -417,7 +399,7 @@ if (isset($update['message'])) {
     
     // Donate IP input
     if (isset($state['waiting_for']) && $state['waiting_for'] == 'donate_ip') {
-        if (isValidIp($text)) {
+        if (isValidIpAddress($text)) {
             addLine(IP_FREE_FILE, $text);
             editMessage($chat_id, $state['message_id'], "✅ آیپی تمیز ذخیره شد", mainMenuKeyboard());
         } else {
@@ -455,13 +437,13 @@ if (isset($update['callback_query'])) {
     
     // Home button
     if ($data == 'home') {
-        $main = getMainMenu();
+        $main = getMainMenu(isAdmin($user_id));
         editMessage($chat_id, $message_id, $main['text'], $main['keyboard']);
     }
     
-    // Back button - goes to previous state (for simplicity, back goes to main menu)
+    // Back button - goes to main menu
     if ($data == 'back') {
-        $main = getMainMenu();
+        $main = getMainMenu(isAdmin($user_id));
         editMessage($chat_id, $message_id, $main['text'], $main['keyboard']);
     }
     
@@ -520,20 +502,20 @@ if (isset($update['callback_query'])) {
                 $keyboard = createInlineKeyboard([
                     ['text' => "🔄 تعویض آیپی", 'callback_data' => 'change_ip_custom']
                 ], true, true);
-} else {
-                    $config = getUserConfig($user_id);
-                    if (!$config) {
-                        $text = "❌ کانفیگ یافت نشد";
-                        $keyboard = createInlineKeyboard([], true, true);
-                    } else {
-                        $newConfig = replaceServerIp($config, $ip);
-                        saveUserConfig($user_id, $newConfig);
-                        $text = "⚙️ کانفیگ با آیپی جدید:\n\n<code>" . htmlspecialchars($newConfig) . "</code>\n\n🔸 برای تعویض دوباره روی دکمه زیر بزنید:";
-                        $keyboard = createInlineKeyboard([
-                            ['text' => "🔄 تعویض آیپی", 'callback_data' => 'change_ip_custom']
-                        ], true, true);
-                    }
+            } else {
+                $config = getUserConfig($user_id);
+                if (!$config) {
+                    $text = "❌ کانفیگ یافت نشد";
+                    $keyboard = createInlineKeyboard([], true, true);
+                } else {
+                    $newConfig = replaceServerIp($config, $ip);
+                    saveUserConfig($user_id, $newConfig);
+                    $text = "⚙️ کانفیگ با آیپی جدید:\n\n<code>" . htmlspecialchars($newConfig) . "</code>\n\n🔸 برای تعویض دوباره روی دکمه زیر بزنید:";
+                    $keyboard = createInlineKeyboard([
+                        ['text' => "🔄 تعویض آیپی", 'callback_data' => 'change_ip_custom']
+                    ], true, true);
                 }
+            }
         }
         editMessage($chat_id, $message_id, $text, $keyboard);
     }
@@ -567,20 +549,20 @@ if (isset($update['callback_query'])) {
                 $keyboard = createInlineKeyboard([
                     ['text' => "🔄 تعویض آیپی", 'callback_data' => 'change_ip_free']
                 ], true, true);
-} else {
-                    $config = getUserConfig($user_id);
-                    if (!$config) {
-                        $text = "❌ کانفیگ یافت نشد";
-                        $keyboard = createInlineKeyboard([], true, true);
-                    } else {
-                        $newConfig = replaceServerIp($config, $ip);
-                        saveUserConfig($user_id, $newConfig);
-                        $text = "🎁 کانفیگ اهدایی با آیپی جدید:\n\n<code>" . htmlspecialchars($newConfig) . "</code>\n\n🔸 برای تعویض دوباره روی دکمه زیر بزنید:";
-                        $keyboard = createInlineKeyboard([
-                            ['text' => "🔄 تعویض آیپی", 'callback_data' => 'change_ip_free']
-                        ], true, true);
-                    }
+            } else {
+                $config = getUserConfig($user_id);
+                if (!$config) {
+                    $text = "❌ کانفیگ یافت نشد";
+                    $keyboard = createInlineKeyboard([], true, true);
+                } else {
+                    $newConfig = replaceServerIp($config, $ip);
+                    saveUserConfig($user_id, $newConfig);
+                    $text = "🎁 کانفیگ اهدایی با آیپی جدید:\n\n<code>" . htmlspecialchars($newConfig) . "</code>\n\n🔸 برای تعویض دوباره روی دکمه زیر بزنید:";
+                    $keyboard = createInlineKeyboard([
+                        ['text' => "🔄 تعویض آیپی", 'callback_data' => 'change_ip_free']
+                    ], true, true);
                 }
+            }
         }
         editMessage($chat_id, $message_id, $text, $keyboard);
     }
