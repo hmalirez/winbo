@@ -62,13 +62,9 @@ function getRemarkName() {
 
 function renameConfigRemark($content) {
     $remarkName = getRemarkName();
-    if (strpos($content, 'remark:') !== false) {
-        $content = preg_replace('/remark:\s*[^\n\r]*/i', 'remark: ' . $remarkName, $content);
-    } elseif (preg_match('/"remark"\s*:\s*"[^"]*"/i', $content)) {
-        $content = preg_replace('/"remark"\s*:\s*"[^"]*"/i', '"remark":"' . $remarkName . '"', $content);
-    } elseif (preg_match("/'remark'\s*:\s*'[^']*'/i", $content)) {
-        $content = preg_replace("/'remark'\s*:\s*'[^']*'/i", "'remark':'". $remarkName . "'", $content);
-    }
+    $content = preg_replace('/remark:\s*([^\n,}]*(?:\{[^}]*\})?[^\n,}]*)/i', 'remark: ' . $remarkName, $content);
+    $content = preg_replace('/"remark"\s*:\s*"[^"]*"/i', '"remark":"' . $remarkName . '"', $content);
+    $content = preg_replace("/'remark'\s*:\s*'[^']*'/i", "'remark':'". $remarkName . "'", $content);
     return $content;
 }
 ?>

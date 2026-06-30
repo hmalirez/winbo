@@ -13,7 +13,7 @@ $data = $update['callback_query']['data'] ?? null;
 $text = isset($update['message']['text']) && $update['message']['text'] !== '/start' ? $update['message']['text'] : '';
 
 if (isset($update['message']) && $update['message']['text'] === '/start') {
-    $isAdmin = ($chatId == $adminId);
+    $isAdmin = ((int)$chatId === $adminId);
     $welcomeText = "👋 به ربات Win2Ray خوش آمدید!\n\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:";
     bot('sendMessage', ['chat_id' => $chatId, 'text' => $welcomeText, 'reply_markup' => getMainMenu($isAdmin), 'parse_mode' => 'HTML']);
     exit;
@@ -36,14 +36,14 @@ function handleCallback($chatId, $messageId, $data) {
     
     $parts = explode(':', $data);
     $action = $parts[0];
-    $isAdmin = ($chatId == $adminId);
+    $isAdmin = ((int)$chatId === $adminId);
     
     if ($action === 'receive_config') {
         showReceiveConfigMenu($chatId, $messageId);
     } elseif ($action === 'donate_config') {
-        showDonateConfigMenu($chatId, $messageId, $isAdmin);
+        showDonateConfigMenu($chatId, $messageId, ((int)$chatId === $adminId));
     } elseif ($action === 'manage') {
-        if ($isAdmin) {
+        if ((int)$chatId === $adminId) {
             showManageMenu($chatId, $messageId);
         } else {
             $text = "⛔ دسترسی محدود فقط برای مدیر";
@@ -90,7 +90,7 @@ function handleCallback($chatId, $messageId, $data) {
 function handleConfigSubmission($chatId, $messageId, $text) {
     global $adminId;
     
-    $isAdmin = ($chatId == $adminId);
+    $isAdmin = ((int)$chatId === $adminId);
     $stateFile = __DIR__ . '/files/states/' . $chatId . '.json';
     $statesDir = __DIR__ . '/files/states/';
     
@@ -194,7 +194,7 @@ function getManageMenu() {
 
 function showMainMenu($chatId, $messageId) {
     global $adminId;
-    $isAdmin = ($chatId == $adminId);
+    $isAdmin = ((int)$chatId === $adminId);
     $text = "👋 به ربات Win2Ray خوش آمدید!\n\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:";
     editMessageText($chatId, $messageId, $text, getMainMenu($isAdmin));
 }
@@ -232,7 +232,8 @@ function showCustomConfigs($chatId, $messageId, $page) {
         $offset = ($page - 1) * 5;
         foreach ($pagedData['configs'] as $localIndex => $config) {
             $globalIndex = $offset + $localIndex;
-            $escapedConfig = htmlspecialchars($config);
+            $configWithRemark = renameConfigRemark($config);
+            $escapedConfig = htmlspecialchars($configWithRemark);
             $text .= "<b>کانفیگ " . ($globalIndex + 1) . ":</b>\n<code>$escapedConfig</code>\n\n";
         }
         
@@ -271,7 +272,8 @@ function showDonatedConfigs($chatId, $messageId, $page) {
         $offset = ($page - 1) * 5;
         foreach ($pagedData['configs'] as $localIndex => $config) {
             $globalIndex = $offset + $localIndex;
-            $escapedConfig = htmlspecialchars($config);
+            $configWithRemark = renameConfigRemark($config);
+            $escapedConfig = htmlspecialchars($configWithRemark);
             $text .= "<b>کانفیگ " . ($globalIndex + 1) . ":</b>\n<code>$escapedConfig</code>\n\n";
         }
         
