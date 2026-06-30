@@ -1,6 +1,6 @@
 <?php
 $botToken = '8933092110:AAE1-gF6Jw0aLfS0SR-aaOxZ6V-kKHECnvE';
-$adminId = '5229414557';
+$adminId = 5229414557;
 
 $donatedConfigPath = __DIR__ . '/files/configs/donated.txt';
 $adminConfigPath = __DIR__ . '/files/configs/admin.txt';

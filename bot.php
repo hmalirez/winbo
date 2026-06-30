@@ -19,8 +19,8 @@ if (isset($update['message']) && $update['message']['text'] === '/start') {
     exit;
 }
 
-if ($callbackId) {
-    bot('answerCallbackQuery', ['callback_query_id' => $callbackId]);
+if (!empty($callbackId)) {
+    bot('answerCallbackQuery', ['callback_query_id' => $callbackId, 'show_alert' => false]);
 }
 
 if ($data) {
@@ -46,7 +46,8 @@ function handleCallback($chatId, $messageId, $data) {
         if ($isAdmin) {
             showManageMenu($chatId, $messageId);
         } else {
-            editMessageText($chatId, $messageId, "⛔ دسترسی محدود فقط برای مدیر", getMainMenu());
+            $text = "⛔ دسترسی محدود فقط برای مدیر";
+            editMessageText($chatId, $messageId, $text, getMainMenu(false));
         }
     } elseif ($action === 'custom_configs') {
         $page = max(1, intval($parts[1] ?? 1));
@@ -67,12 +68,6 @@ function handleCallback($chatId, $messageId, $data) {
         } elseif ($to === 'manage') {
             showManageMenu($chatId, $messageId);
         }
-    } elseif ($action === 'send_custom_config') {
-        $index = intval($parts[1] ?? 0);
-        sendCustomConfig($chatId, $index);
-    } elseif ($action === 'send_donated_config') {
-        $index = intval($parts[1] ?? 0);
-        sendDonatedConfig($chatId, $index);
     } elseif ($action === 'admin_send_config') {
         showAdminSendConfig($chatId, $messageId);
     } elseif ($action === 'admin_clear_list') {
@@ -139,11 +134,11 @@ function getDonateCancelMenu() {
     ]);
 }
 
-function getCancelMenu() {
+function getAdminCancelMenu() {
     return json_encode([
         'inline_keyboard' => [
             [['text' => '🏠 صفحه اصلی', 'callback_data' => 'main_menu']],
-            [['text' => '🔙 بازگشت', 'callback_data' => 'back:receive']]
+            [['text' => '🔙 بازگشت', 'callback_data' => 'back:manage']]
         ]
     ]);
 }
@@ -229,6 +224,7 @@ function showCustomConfigs($chatId, $messageId, $page) {
     ];
     
     $text = "🔧 کانفیگ‌های اختصاصی\n\n";
+    $text .= "صفحه $page از {$pagedData['totalPages']}\n\n";
     
     if (empty($pagedData['configs'])) {
         $text .= "هیچ کانفیگ اختصاصی یافت نشد!";
@@ -236,11 +232,11 @@ function showCustomConfigs($chatId, $messageId, $page) {
         $offset = ($page - 1) * 5;
         foreach ($pagedData['configs'] as $localIndex => $config) {
             $globalIndex = $offset + $localIndex;
-            $keyboard[] = [['text' => 'دانلود کانفیگ ' . ($globalIndex + 1), 'callback_data' => "send_custom_config:$globalIndex"]];
+            $escapedConfig = htmlspecialchars($config);
+            $text .= "<b>کانفیگ " . ($globalIndex + 1) . ":</b>\n<code>$escapedConfig</code>\n\n";
         }
-        $text .= "صفحه $page از {$pagedData['totalPages']}";
         
-        if ($pagedData['totalPages'] > 1) {
+        if ($pagedData['totalConfigs'] > 5) {
             $navButtons = [];
             if ($page > 1) {
                 $navButtons[] = ['text' => '◀️ قبلی', 'callback_data' => "custom_configs:" . ($page - 1)];
@@ -267,6 +263,7 @@ function showDonatedConfigs($chatId, $messageId, $page) {
     ];
     
     $text = "🎁 کانفیگ‌های اهدایی\n\n";
+    $text .= "صفحه $page از {$pagedData['totalPages']}\n\n";
     
     if (empty($pagedData['configs'])) {
         $text .= "هیچ کانفیگ اهدایی یافت نشد!";
@@ -274,11 +271,11 @@ function showDonatedConfigs($chatId, $messageId, $page) {
         $offset = ($page - 1) * 5;
         foreach ($pagedData['configs'] as $localIndex => $config) {
             $globalIndex = $offset + $localIndex;
-            $keyboard[] = [['text' => 'دانلود کانفیگ ' . ($globalIndex + 1), 'callback_data' => "send_donated_config:$globalIndex"]];
+            $escapedConfig = htmlspecialchars($config);
+            $text .= "<b>کانفیگ " . ($globalIndex + 1) . ":</b>\n<code>$escapedConfig</code>\n\n";
         }
-        $text .= "صفحه $page از {$pagedData['totalPages']}";
         
-        if ($pagedData['totalPages'] > 1) {
+        if ($pagedData['totalConfigs'] > 5) {
             $navButtons = [];
             if ($page > 1) {
                 $navButtons[] = ['text' => '◀️ قبلی', 'callback_data' => "donated_configs:" . ($page - 1)];
@@ -295,38 +292,6 @@ function showDonatedConfigs($chatId, $messageId, $page) {
     editMessageText($chatId, $messageId, $text, json_encode(['inline_keyboard' => $keyboard]));
 }
 
-function sendCustomConfig($chatId, $index) {
-    global $adminConfigPath, $adminId;
-    $configs = getConfigsFromFile($adminConfigPath);
-    $config = $configs[$index] ?? null;
-    $isAdmin = ($chatId == $adminId);
-    
-    if ($config) {
-        bot('sendDocument', [
-            'chat_id' => $chatId,
-            'document' => 'data://text/plain,' . urlencode($config),
-            'caption' => '✅ کانفیگ اختصاصی شما آماده دانلود است!',
-            'reply_markup' => getMainMenu($isAdmin)
-        ]);
-    }
-}
-
-function sendDonatedConfig($chatId, $index) {
-    global $donatedConfigPath, $adminId;
-    $configs = getConfigsFromFile($donatedConfigPath);
-    $config = $configs[$index] ?? null;
-    $isAdmin = ($chatId == $adminId);
-    
-    if ($config) {
-        bot('sendDocument', [
-            'chat_id' => $chatId,
-            'document' => 'data://text/plain,' . urlencode($config),
-            'caption' => '✅ کانفیگ اهدایی شما آماده دانلود است!',
-            'reply_markup' => getMainMenu($isAdmin)
-        ]);
-    }
-}
-
 function showAdminSendConfig($chatId, $messageId) {
     $keyboard = [
         [['text' => '🏠 صفحه اصلی', 'callback_data' => 'main_menu']],
@@ -334,15 +299,6 @@ function showAdminSendConfig($chatId, $messageId) {
     ];
     $text = "📤 ارسال کانفیگ اختصاصی\n\nلطفاً کانفیگ خود را ارسال کنید:";
     editMessageText($chatId, $messageId, $text, json_encode(['inline_keyboard' => $keyboard]));
-}
-
-function getAdminCancelMenu() {
-    return json_encode([
-        'inline_keyboard' => [
-            [['text' => '🏠 صفحه اصلی', 'callback_data' => 'main_menu']],
-            [['text' => '🔙 بازگشت', 'callback_data' => 'back:manage']]
-        ]
-    ]);
 }
 
 function showAdminClearList($chatId, $messageId) {
