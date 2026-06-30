@@ -15,6 +15,15 @@ $data = $update['callback_query']['data'] ?? null;
 $text = isset($update['message']['text']) && $update['message']['text'] !== '/start' ? $update['message']['text'] : '';
 
 if (isset($update['message']) && $update['message']['text'] === '/start') {
+    $settings = getSettings();
+    $forceChannel = $settings['force_channel'] ?? '';
+    
+    if ($forceChannel && !isMember($chatId, $forceChannel)) {
+        $joinText = "⚠️ برای استفاده از ربات، ابتدا باید در کانال عضو شوید!\n\n🔗 لینک کانال: " . ($forceChannel);
+        bot('sendMessage', ['chat_id' => $chatId, 'text' => $joinText, 'reply_markup' => getJoinKeyboard($forceChannel), 'parse_mode' => 'HTML']);
+        exit;
+    }
+    
     $isAdmin = ((int)$chatId === $adminId);
     $welcomeText = "👋 به ربات Win2Ray خوش آمدید!\n\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:";
     bot('sendMessage', ['chat_id' => $chatId, 'text' => $welcomeText, 'reply_markup' => getMainMenu($isAdmin), 'parse_mode' => 'HTML']);
@@ -25,12 +34,53 @@ if (!empty($callbackId)) {
     bot('answerCallbackQuery', ['callback_query_id' => $callbackId, 'show_alert' => false]);
 }
 
+// Check membership for all callbacks (except admin functions and verify_join)
 if ($data) {
+    $settings = getSettings();
+    $forceChannel = $settings['force_channel'] ?? '';
+    $parts = explode(':', $data);
+    $action = $parts[0];
+    $isAdmin = ((int)$chatId === $adminId);
+    
+    // Admin can always access, and verify_join bypasses check
+    if (!$isAdmin && $forceChannel && $action !== 'verify_join' && !isMember($chatId, $forceChannel)) {
+        $joinText = "⚠️ برای استفاده از ربات، ابتدا باید در کانال عضو شوید!\n\n🔗 لینک کانال: " . ($forceChannel);
+        editMessageText($chatId, $messageId, $joinText, getJoinKeyboard($forceChannel));
+        exit;
+    }
+    
     handleCallback($chatId, $messageId, $data);
 }
 
 if (!empty($text) && (strpos($text, 'ss://') !== false || strpos($text, 'vmess://') !== false || strpos($text, 'trojan://') !== false)) {
+    // Check membership before allowing config submission
+    $settings = getSettings();
+    $forceChannel = $settings['force_channel'] ?? '';
+    $isAdmin = ((int)$chatId === $adminId);
+    
+    if (!$isAdmin && $forceChannel && !isMember($chatId, $forceChannel)) {
+        $joinText = "⚠️ برای اهدای کانفیگ، ابتدا باید در کانال عضو شوید!";
+        bot('sendMessage', ['chat_id' => $chatId, 'text' => $joinText, 'reply_markup' => getJoinKeyboard($forceChannel), 'parse_mode' => 'HTML']);
+        exit;
+    }
+    
     handleConfigSubmission($chatId, $messageId, $text);
+}
+
+// Handle setting force channel
+if (isset($update['message']) && !empty($text) && $text !== '/start') {
+    $stateFile = __DIR__ . '/files/states/' . $chatId . '.json';
+    if (file_exists($stateFile)) {
+        $state = json_decode(file_get_contents($stateFile), true);
+        if (isset($state['pending_channel'])) {
+            $settings = getSettings();
+            $settings['force_channel'] = $text;
+            saveSettings($settings);
+            bot('sendMessage', ['chat_id' => $chatId, 'text' => "✅ کانال عضویت اجباری تنظیم شد: $text", 'reply_markup' => getManageMenu(), 'parse_mode' => 'HTML']);
+            unlink($stateFile);
+            exit;
+        }
+    }
 }
 
 function handleCallback($chatId, $messageId, $data) {
@@ -70,12 +120,25 @@ function handleCallback($chatId, $messageId, $data) {
         } elseif ($to === 'manage') {
             showManageMenu($chatId, $messageId);
         }
+    } elseif ($action === 'verify_join') {
+        $settings = getSettings();
+        $forceChannel = $settings['force_channel'] ?? '';
+        if (isMember($chatId, $forceChannel)) {
+            $isAdmin = ((int)$chatId === $adminId);
+            $welcomeText = "👋 به ربات Win2Ray خوش آمدید!\n\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:";
+            editMessageText($chatId, $messageId, $welcomeText, getMainMenu($isAdmin));
+        } else {
+            $joinText = "❌ هنوز عضو کانال نیستید! لطفاً ابتدا عضو کانال شوید.";
+            bot('answerCallbackQuery', ['callback_query_id' => $callbackId, 'text' => $joinText, 'show_alert' => true]);
+        }
     } elseif ($action === 'admin_send_config') {
         showAdminSendConfig($chatId, $messageId);
     } elseif ($action === 'admin_clear_list') {
         showAdminClearList($chatId, $messageId);
     } elseif ($action === 'admin_stats') {
         showAdminStats($chatId, $messageId);
+    } elseif ($action === 'set_force_channel') {
+        showSetForceChannel($chatId, $messageId);
     } elseif ($action === 'clear_custom') {
         clearConfigsFile($adminConfigPath);
         editMessageText($chatId, $messageId, "✅ لیست کانفیگ‌های اختصاصی خالی شد!", getManageMenu());
@@ -189,6 +252,7 @@ function getManageMenu() {
             [['text' => '📤 ارسال کانفیگ', 'callback_data' => 'save_custom']],
             [['text' => '🗑️ حذف لیست', 'callback_data' => 'admin_clear_list']],
             [['text' => '📊 آمار کلی ربات', 'callback_data' => 'admin_stats']],
+            [['text' => '📢 تنظیمات کانال عضویت', 'callback_data' => 'set_force_channel']],
             [['text' => '🏠 صفحه اصلی', 'callback_data' => 'main_menu']]
         ]
     ]);
@@ -197,6 +261,26 @@ function getManageMenu() {
 function showManageMenu($chatId, $messageId) {
     $text = "⚙️ مدیریت ربات\n\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:";
     editMessageText($chatId, $messageId, $text, getManageMenu());
+}
+
+function showSetForceChannel($chatId, $messageId) {
+    global $settingsPath;
+    $settings = getSettings();
+    $currentChannel = $settings['force_channel'] ?? 'تنظیم نشده';
+    
+    $keyboard = json_encode([
+        'inline_keyboard' => [
+            [['text' => '🏠 صفحه اصلی', 'callback_data' => 'main_menu']],
+            [['text' => '🔙 بازگشت', 'callback_data' => 'back:manage']]
+        ]
+    ]);
+    
+    $text = "📢 تنظیمات کانال عضویت اجباری\n\nکانال فعلی: <code>$currentChannel</code>\n\nبرای تنظیم کانال جدید، آیدی یا لینک کانال را بفرستید (مثال: @HesamWeb یا https://t.me/HesamWeb):";
+    
+    $stateFile = __DIR__ . '/files/states/' . $chatId . '.json';
+    file_put_contents($stateFile, json_encode(['pending_channel' => true]));
+    
+    bot('sendMessage', ['chat_id' => $chatId, 'text' => $text, 'reply_markup' => $keyboard, 'parse_mode' => 'HTML']);
 }
 
 function showMainMenu($chatId, $messageId) {
@@ -238,7 +322,7 @@ function showCustomConfigs($chatId, $messageId, $page) {
             $text .= "<code>$escapedConfig</code>\n\n";
         }
         
-        // Navigation row 1: Next, Page count, Previous
+        // Navigation row 1: Previous, Page count, Next
         $navButtons = [];
         if ($page > 1) {
             $navButtons[] = ['text' => '◀️ قبلی', 'callback_data' => "custom_configs:" . ($page - 1)];
@@ -275,7 +359,7 @@ function showDonatedConfigs($chatId, $messageId, $page) {
             $text .= "<code>$escapedConfig</code>\n\n";
         }
         
-        // Navigation row 1: Next, Page count, Previous
+        // Navigation row 1: Previous, Page count, Next
         $navButtons = [];
         if ($page > 1) {
             $navButtons[] = ['text' => '◀️ قبلی', 'callback_data' => "donated_configs:" . ($page - 1)];

@@ -1,15 +1,30 @@
 <?php
-$botToken = '8693487702:AAEQJpOcSy8kszy1uM0OXU-hYVsfzN-bDQI';
+$botToken = '8933092110:AAE1-gF6Jw0aLfS0SR-aaOxZ6V-kKHECnvE';
 $adminId = 5229414557;
 
 $donatedConfigPath = __DIR__ . '/files/configs/donated.txt';
 $adminConfigPath = __DIR__ . '/files/configs/admin.txt';
 $statesDir = __DIR__ . '/files/states/';
+$settingsPath = __DIR__ . '/files/settings.json';
 
 function ensureStateDir() {
     if (!is_dir($GLOBALS['statesDir'])) {
         mkdir($GLOBALS['statesDir'], 0755, true);
     }
+}
+
+function getSettings() {
+    if (!file_exists($GLOBALS['settingsPath'])) {
+        return ['force_channel' => ''];
+    }
+    return json_decode(file_get_contents($GLOBALS['settingsPath']), true) ?: ['force_channel' => ''];
+}
+
+function saveSettings($settings) {
+    if (!is_dir(dirname($GLOBALS['settingsPath']))) {
+        mkdir(dirname($GLOBALS['settingsPath']), 0755, true);
+    }
+    file_put_contents($GLOBALS['settingsPath'], json_encode($settings));
 }
 
 function bot($method, $data = []) {
@@ -56,5 +71,36 @@ function saveConfigToFile($filePath, $config) {
 
 function clearConfigsFile($filePath) {
     file_put_contents($filePath, '');
+}
+
+function isMember($chatId, $channel) {
+    if (!$channel) return true;
+    $response = bot('getChatMember', [
+        'chat_id' => $channel,
+        'user_id' => $chatId
+    ]);
+    if ($response && isset($response['result']['status'])) {
+        $status = $response['result']['status'];
+        return in_array($status, ['member', 'administrator', 'creator']);
+    }
+    return false;
+}
+
+function getJoinKeyboard($channel) {
+    $channelLink = '';
+    if (strpos($channel, '@') === 0) {
+        $channelLink = "https://t.me/" . ltrim($channel, '@');
+    } elseif (strpos($channel, 'https://t.me/') === 0 || strpos($channel, 'https://telegram.me/') === 0) {
+        $channelLink = $channel;
+    } else {
+        $channelLink = "https://t.me/" . $channel;
+    }
+    
+    return json_encode([
+        'inline_keyboard' => [
+            [['text' => '🔗 لینک کانال', 'url' => $channelLink]],
+            [['text' => '✅ عضو شدم', 'callback_data' => 'verify_join']]
+        ]
+    ]);
 }
 ?>
