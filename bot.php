@@ -226,37 +226,35 @@ function showCustomConfigs($chatId, $messageId, $page) {
     global $adminConfigPath;
     $pagedData = getPagedConfigs($adminConfigPath, $page, 5);
     
-    $keyboard = [
-        [['text' => '🏠 صفحه اصلی', 'callback_data' => 'main_menu']],
-        [['text' => '🔙 بازگشت', 'callback_data' => 'back:receive']]
-    ];
+    $keyboard = [];
     
     $text = "🔧 کانفیگ‌های اختصاصی\n\n";
-    $text .= "صفحه $page از {$pagedData['totalPages']}\n\n";
     
     if (empty($pagedData['configs'])) {
         $text .= "هیچ کانفیگ اختصاصی یافت نشد!";
     } else {
-        $offset = ($page - 1) * 5;
         foreach ($pagedData['configs'] as $localIndex => $config) {
-            $globalIndex = $offset + $localIndex;
             $escapedConfig = htmlspecialchars($config);
-            $text .= "<b>کانفیگ " . ($globalIndex + 1) . ":</b>\n<code>$escapedConfig</code>\n\n";
+            $text .= "<code>$escapedConfig</code>\n\n";
         }
         
-        if ($pagedData['totalConfigs'] > 5) {
-            $navButtons = [];
-            if ($page > 1) {
-                $navButtons[] = ['text' => '◀️ قبلی', 'callback_data' => "custom_configs:" . ($page - 1)];
-            }
-            if ($page < $pagedData['totalPages']) {
-                $navButtons[] = ['text' => 'بعدی ▶️', 'callback_data' => "custom_configs:" . ($page + 1)];
-            }
-            if (!empty($navButtons)) {
-                $keyboard[] = $navButtons;
-            }
+        // Navigation row 1: Next, Page count, Previous
+        $navButtons = [];
+        if ($page > 1) {
+            $navButtons[] = ['text' => '◀️ قبلی', 'callback_data' => "custom_configs:" . ($page - 1)];
         }
+        $navButtons[] = ['text' => "📄 صفحه $page از {$pagedData['totalPages']}", 'callback_data' => 'page_info'];
+        if ($page < $pagedData['totalPages']) {
+            $navButtons[] = ['text' => 'بعدی ▶️', 'callback_data' => "custom_configs:" . ($page + 1)];
+        }
+        $keyboard[] = $navButtons;
     }
+    
+    // Navigation row 2: Home, Back
+    $keyboard[] = [
+        ['text' => '🏠 صفحه اصلی', 'callback_data' => 'main_menu'],
+        ['text' => '🔙 بازگشت', 'callback_data' => 'back:receive']
+    ];
     
     editMessageText($chatId, $messageId, $text, json_encode(['inline_keyboard' => $keyboard]));
 }
@@ -265,37 +263,35 @@ function showDonatedConfigs($chatId, $messageId, $page) {
     global $donatedConfigPath;
     $pagedData = getPagedConfigs($donatedConfigPath, $page, 5);
     
-    $keyboard = [
-        [['text' => '🏠 صفحه اصلی', 'callback_data' => 'main_menu']],
-        [['text' => '🔙 بازگشت', 'callback_data' => 'back:receive']]
-    ];
+    $keyboard = [];
     
     $text = "🎁 کانفیگ‌های اهدایی\n\n";
-    $text .= "صفحه $page از {$pagedData['totalPages']}\n\n";
     
     if (empty($pagedData['configs'])) {
         $text .= "هیچ کانفیگ اهدایی یافت نشد!";
     } else {
-        $offset = ($page - 1) * 5;
         foreach ($pagedData['configs'] as $localIndex => $config) {
-            $globalIndex = $offset + $localIndex;
             $escapedConfig = htmlspecialchars($config);
-            $text .= "<b>کانفیگ " . ($globalIndex + 1) . ":</b>\n<code>$escapedConfig</code>\n\n";
+            $text .= "<code>$escapedConfig</code>\n\n";
         }
         
-        if ($pagedData['totalConfigs'] > 5) {
-            $navButtons = [];
-            if ($page > 1) {
-                $navButtons[] = ['text' => '◀️ قبلی', 'callback_data' => "donated_configs:" . ($page - 1)];
-            }
-            if ($page < $pagedData['totalPages']) {
-                $navButtons[] = ['text' => 'بعدی ▶️', 'callback_data' => "donated_configs:" . ($page + 1)];
-            }
-            if (!empty($navButtons)) {
-                $keyboard[] = $navButtons;
-            }
+        // Navigation row 1: Next, Page count, Previous
+        $navButtons = [];
+        if ($page > 1) {
+            $navButtons[] = ['text' => '◀️ قبلی', 'callback_data' => "donated_configs:" . ($page - 1)];
         }
+        $navButtons[] = ['text' => "📄 صفحه $page از {$pagedData['totalPages']}", 'callback_data' => 'page_info'];
+        if ($page < $pagedData['totalPages']) {
+            $navButtons[] = ['text' => 'بعدی ▶️', 'callback_data' => "donated_configs:" . ($page + 1)];
+        }
+        $keyboard[] = $navButtons;
     }
+    
+    // Navigation row 2: Home, Back
+    $keyboard[] = [
+        ['text' => '🏠 صفحه اصلی', 'callback_data' => 'main_menu'],
+        ['text' => '🔙 بازگشت', 'callback_data' => 'back:receive']
+    ];
     
     editMessageText($chatId, $messageId, $text, json_encode(['inline_keyboard' => $keyboard]));
 }
