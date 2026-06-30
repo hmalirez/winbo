@@ -85,19 +85,17 @@ function renameConfigRemark($content) {
         
         // Remove any query string for decoding
         $mainPart = $base64Part;
-        $queryPart = '';
         if (strpos($base64Part, '?') !== false) {
             $parts = explode('?', $base64Part, 2);
             $mainPart = $parts[0];
-            $queryPart = '?' . $parts[1];
         }
         
         $decoded = base64_decode(rawurldecode($mainPart));
         if ($decoded) {
             // Check if decoded content has remark in it
             if (preg_match('/\?.*remark=/', $decoded)) {
-                // Replace remark in decoded string
-                $decoded = preg_replace('/remark=[^&]*/i', 'remark=' . urlencode($remarkName), $decoded);
+                // Replace remark in decoded string - do NOT use urlencode to preserve Unicode
+                $decoded = preg_replace('/remark=[^&]*/i', 'remark=' . $remarkName, $decoded);
                 $encoded = base64_encode($decoded);
                 $content = 'ss://' . $encoded;
             } else {
@@ -119,7 +117,7 @@ function renameConfigRemark($content) {
         
         // If base64 decode fails, try to handle as plain URL format
         if (preg_match('/\?.*remark=/i', $content)) {
-            $content = preg_replace('/remark=[^&\s]*/i', 'remark=' . urlencode($remarkName), $content);
+            $content = preg_replace('/remark=[^&\s]*/i', 'remark=' . $remarkName, $content);
         }
         return $content;
     }
@@ -130,7 +128,11 @@ function renameConfigRemark($content) {
         $query = [];
         parse_str($parsed['query'] ?? '', $query);
         $query['remark'] = $remarkName;
-        $newQuery = http_build_query($query);
+        // Build query manually to preserve Unicode
+        $newQuery = '';
+        foreach ($query as $k => $v) {
+            $newQuery .= ($newQuery ? '&' : '') . "$k=$v";
+        }
         $content = 'trojan://@' . ($parsed['host'] ?? '') . ':' . ($parsed['port'] ?? '') . '?' . $newQuery;
         return $content;
     }
