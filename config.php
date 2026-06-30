@@ -75,14 +75,28 @@ function clearConfigsFile($filePath) {
 
 function isMember($chatId, $channel) {
     if (!$channel) return true;
+    
+    // Convert invite link to username if needed
+    $chatIdParam = $channel;
+    if (preg_match('/joinchat\/([A-Za-z0-9_-]+$)/', $channel, $m)) {
+        $chatIdParam = 'joinchat/' . $m[1];
+    } elseif (strpos($channel, '@') !== 0 && !is_numeric($channel)) {
+        // If it's a username without @, add it
+        if (strpos($channel, 't.me/') === false && strpos($channel, 'telegram.me/') === false) {
+            $chatIdParam = '@' . $channel;
+        }
+    }
+    
     $response = bot('getChatMember', [
-        'chat_id' => $channel,
+        'chat_id' => $chatIdParam,
         'user_id' => $chatId
     ]);
+    
     if ($response && isset($response['result']['status'])) {
         $status = $response['result']['status'];
         return in_array($status, ['member', 'administrator', 'creator']);
     }
+    
     return false;
 }
 

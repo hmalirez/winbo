@@ -49,7 +49,7 @@ if ($data) {
         exit;
     }
     
-    handleCallback($chatId, $messageId, $data);
+    handleCallback($chatId, $messageId, $data, $callbackId);
 }
 
 if (!empty($text) && (strpos($text, 'ss://') !== false || strpos($text, 'vmess://') !== false || strpos($text, 'trojan://') !== false)) {
@@ -83,7 +83,7 @@ if (isset($update['message']) && !empty($text) && $text !== '/start') {
     }
 }
 
-function handleCallback($chatId, $messageId, $data) {
+function handleCallback($chatId, $messageId, $data, $callbackId = null) {
     global $adminId, $donatedConfigPath, $adminConfigPath;
     
     $parts = explode(':', $data);
