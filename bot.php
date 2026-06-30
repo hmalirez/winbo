@@ -103,7 +103,7 @@ function handleConfigSubmission($chatId, $messageId, $text) {
     $state = json_decode(file_get_contents($stateFile), true);
     
     if ($state && isset($state['pending_config'])) {
-        $config = renameConfigRemark($text);
+        $config = $text;
         $targetPath = $state['pending_config'];
         saveConfigToFile($targetPath, $config);
         unlink($stateFile);
@@ -235,8 +235,7 @@ function showCustomConfigs($chatId, $messageId, $page) {
         $offset = ($page - 1) * 5;
         foreach ($pagedData['configs'] as $localIndex => $config) {
             $globalIndex = $offset + $localIndex;
-            $configWithRemark = renameConfigRemark($config);
-            $escapedConfig = htmlspecialchars($configWithRemark);
+            $escapedConfig = htmlspecialchars($config);
             $text .= "<b>کانفیگ " . ($globalIndex + 1) . ":</b>\n<code>$escapedConfig</code>\n\n";
         }
         
@@ -275,8 +274,7 @@ function showDonatedConfigs($chatId, $messageId, $page) {
         $offset = ($page - 1) * 5;
         foreach ($pagedData['configs'] as $localIndex => $config) {
             $globalIndex = $offset + $localIndex;
-            $configWithRemark = renameConfigRemark($config);
-            $escapedConfig = htmlspecialchars($configWithRemark);
+            $escapedConfig = htmlspecialchars($config);
             $text .= "<b>کانفیگ " . ($globalIndex + 1) . ":</b>\n<code>$escapedConfig</code>\n\n";
         }
         
