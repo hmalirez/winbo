@@ -1,5 +1,5 @@
 <?php
-$botToken = '8933092110:AAE1-gF6Jw0aLfS0SR-aaOxZ6V-kKHECnvE';
+$botToken = '8693487702:AAEQJpOcSy8kszy1uM0OXU-hYVsfzN-bDQI';
 $adminId = 5229414557;
 
 $donatedConfigPath = __DIR__ . '/files/configs/donated.txt';

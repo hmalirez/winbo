@@ -275,7 +275,7 @@ function showSetForceChannel($chatId, $messageId) {
         ]
     ]);
     
-    $text = "📢 تنظیمات کانال عضویت اجباری\n\nکانال فعلی: <code>$currentChannel</code>\n\nبرای تنظیم کانال جدید، آیدی یا لینک کانال را بفرستید (مثال: @HesamWeb یا https://t.me/HesamWeb):";
+    $text = "📢 تنظیمات کانال عضویت اجباری\n\nکانال فعلی: <code>$currentChannel</code>\n\nبرای تنظیم کانال جدید،  لینک کانال را بفرستید (مثال: HesamWeb:";
     
     $stateFile = __DIR__ . '/files/states/' . $chatId . '.json';
     file_put_contents($stateFile, json_encode(['pending_channel' => true]));
