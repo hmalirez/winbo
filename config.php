@@ -62,9 +62,82 @@ function getRemarkName() {
 
 function renameConfigRemark($content) {
     $remarkName = getRemarkName();
+    
+    // Handle vmess:// URLs (base64 encoded JSON)
+    if (strpos($content, 'vmess://') === 0) {
+        $base64Part = substr($content, 8);
+        $decoded = base64_decode($base64Part);
+        if ($decoded) {
+            $json = json_decode($decoded, true);
+            if ($json && is_array($json)) {
+                $json['ps'] = $remarkName;
+                $json['remark'] = $remarkName;
+                $content = 'vmess://' . base64_encode(json_encode($json, JSON_UNESCAPED_UNICODE));
+            }
+        }
+        return $content;
+    }
+    
+    // Handle ss:// URLs
+    if (strpos($content, 'ss://') === 0) {
+        // Decode base64 and modify if possible
+        $base64Part = substr($content, 5);
+        
+        // Remove any query string for decoding
+        $mainPart = $base64Part;
+        $queryPart = '';
+        if (strpos($base64Part, '?') !== false) {
+            $parts = explode('?', $base64Part, 2);
+            $mainPart = $parts[0];
+            $queryPart = '?' . $parts[1];
+        }
+        
+        $decoded = base64_decode(rawurldecode($mainPart));
+        if ($decoded) {
+            // Check if decoded content has remark in it
+            if (preg_match('/\?.*remark=/', $decoded)) {
+                // Replace remark in decoded string
+                $decoded = preg_replace('/remark=[^&]*/i', 'remark=' . urlencode($remarkName), $decoded);
+                $encoded = base64_encode($decoded);
+                $content = 'ss://' . $encoded;
+            } else {
+                // Try to add remark
+                $parts = explode(':', $decoded);
+                if (count($parts) >= 3) {
+                    $params = [];
+                    if (isset($parts[3])) {
+                        parse_str($parts[3], $params);
+                    }
+                    $params['remark'] = $remarkName;
+                    $parts[3] = http_build_query($params);
+                    $encoded = base64_encode(implode(':', $parts));
+                    $content = 'ss://' . $encoded;
+                }
+            }
+            return $content;
+        }
+        
+        // If base64 decode fails, try to handle as plain URL format
+        if (preg_match('/\?.*remark=/i', $content)) {
+            $content = preg_replace('/remark=[^&\s]*/i', 'remark=' . urlencode($remarkName), $content);
+        }
+        return $content;
+    }
+    
+    // Handle trojan:// URLs
+    if (strpos($content, 'trojan://') === 0) {
+        $parsed = parse_url($content);
+        $query = [];
+        parse_str($parsed['query'] ?? '', $query);
+        $query['remark'] = $remarkName;
+        $newQuery = http_build_query($query);
+        $content = 'trojan://@' . ($parsed['host'] ?? '') . ':' . ($parsed['port'] ?? '') . '?' . $newQuery;
+        return $content;
+    }
+    
+    // Handle plain text configs (YAML/JSON)
     $content = preg_replace('/remark:\s*([^\n,}]*(?:\{[^}]*\})?[^\n,}]*)/i', 'remark: ' . $remarkName, $content);
     $content = preg_replace('/"remark"\s*:\s*"[^"]*"/i', '"remark":"' . $remarkName . '"', $content);
-    $content = preg_replace("/'remark'\s*:\s*'[^']*'/i", "'remark':'". $remarkName . "'", $content);
     return $content;
 }
 ?>

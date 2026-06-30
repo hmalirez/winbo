@@ -1,12 +1,19 @@
 <?php
 require_once __DIR__ . '/config.php';
 
+// Debug logging
+$logFile = __DIR__ . '/files/debug.log';
 $input = file_get_contents('php://input');
 $update = json_decode($input, true);
 
 if (!$update) exit;
 
-$chatId = $update['message']['chat']['id'] ?? $update['callback_query']['message']['chat']['id'] ?? null;
+// Log the update for debugging
+file_put_contents($logFile, date('Y-m-d H:i:s') . " - Update received: " . json_encode($update, JSON_PRETTY_PRINT) . "\n\n", FILE_APPEND);
+
+$callbackUserId = $update['callback_query']['from']['id'] ?? null;
+$messageChatId = $update['message']['chat']['id'] ?? null;
+$chatId = $callbackUserId ?? $messageChatId ?? null;
 $messageId = $update['message']['message_id'] ?? $update['callback_query']['message']['message_id'] ?? null;
 $callbackId = $update['callback_query']['id'] ?? null;
 $data = $update['callback_query']['data'] ?? null;
@@ -43,6 +50,7 @@ function handleCallback($chatId, $messageId, $data) {
     } elseif ($action === 'donate_config') {
         showDonateConfigMenu($chatId, $messageId, ((int)$chatId === $adminId));
     } elseif ($action === 'manage') {
+        file_put_contents($logFile, date('Y-m-d H:i:s') . " - Manage action triggered, chatId=$chatId, adminId=$adminId, isAdmin=" . (((int)$chatId === $adminId) ? 'true' : 'false') . "\n", FILE_APPEND);
         if ((int)$chatId === $adminId) {
             showManageMenu($chatId, $messageId);
         } else {
@@ -210,6 +218,7 @@ function showDonateConfigMenu($chatId, $messageId, $isAdmin) {
 }
 
 function showReceiveConfigMenu($chatId, $messageId) {
+    $isAdmin = false;
     $text = "📥 دریافت کانفیگ\n\nلطفاً نوع کانفیگ را انتخاب کنید:";
     editMessageText($chatId, $messageId, $text, getReceiveConfigMenu());
 }
