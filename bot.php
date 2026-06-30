@@ -194,6 +194,11 @@ function getManageMenu() {
     ]);
 }
 
+function showManageMenu($chatId, $messageId) {
+    $text = "⚙️ مدیریت ربات\n\nلطفاً یکی از گزینه‌های زیر را انتخاب کنید:";
+    editMessageText($chatId, $messageId, $text, getManageMenu());
+}
+
 function showMainMenu($chatId, $messageId) {
     global $adminId;
     $isAdmin = ((int)$chatId === $adminId);
